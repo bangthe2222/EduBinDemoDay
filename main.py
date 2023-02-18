@@ -22,6 +22,10 @@ from kivy.graphics.texture import Texture
 from __random import randomImgae
 import cv2
 from models.YOLOv8 import YOLOv8
+import playsound 
+import serial
+import tensorflow as tf
+import numpy as np
 
 date_Time = datetime.datetime.now()
 date_Time_Str = str(date_Time)
@@ -80,7 +84,7 @@ class CameraScreen(Screen):
 
         # Tạo các widget và thêm chúng vào màn hình
         # tạo camera capture và widget camera
-        self.cap = cv2.VideoCapture(0)
+        self.cap = cv2.VideoCapture(1)
         camera_widget = CameraWidget(capture=self.cap)
         camera_widget.size_hint = (0.335, 0.5)
         camera_widget.pos_hint = {'top': 0.7, 'right': 0.497}
@@ -88,6 +92,10 @@ class CameraScreen(Screen):
 
         # bắt đầu cập nhật khung hình camera
         Clock.schedule_interval(camera_widget.update, 1.0 / 30.0)
+
+        # load model
+        model_name = "UEH_vending_3class_20epoch_max.h5"
+        self.model = tf.keras.models.load_model(model_name)
 
         # Add FancyButton widget
         fancy_button = FancyButton(text='Chụp hình')
@@ -98,16 +106,27 @@ class CameraScreen(Screen):
         layout.add_widget(fancy_button)
         self.add_widget(layout)
 
-        model_path = "./EduBinYolov8_10_2_2023.onnx"
-        class_names = ["bottle", "milk bottle", "metal"]
-    
-        # Initialize YOLOv8 object detector
-        self.yolov8_detector = YOLOv8(model_path,  # path to onnx model 
-                            class_names= class_names, # class names
-                            conf_thres=0.8, # confidence threshold
-                            iou_thres=0.5   # iou threshold 
-                            )
+        Clock.schedule_interval(self.getSensor, 1.0 / 30.0)
+        # config serial
+        self.ser = serial.Serial("COM6",9600, timeout = 0.1)
 
+        # yolov8 onnx
+
+        # model_path = "./EduBinYolov8_10_2_2023.onnx"
+        # class_names = ["bottle", "milk bottle", "metal"]
+    
+        # # Initialize YOLOv8 object detector
+        # self.yolov8_detector = YOLOv8(model_path,  # path to onnx model 
+        #                     class_names= class_names, # class names
+        #                     conf_thres=0.8, # confidence threshold
+        #                     iou_thres=0.5   # iou threshold 
+        #                     )
+
+    def getSensor(self):
+        id = self.ser.readline()
+        print(id)
+        if id[:-2].decode("utf-8") == "0":
+            self.on_fancy_button_press()
     def update_rect(self, *args):
         self.rect.pos = self.pos
         self.rect.size = self.size
@@ -121,33 +140,58 @@ class CameraScreen(Screen):
 
         # Đọc khung hình từ camera
         ret, frame = self.cap.read()
-        # Tạo tên file từ ngày giờ hiện tại
-        self.yolov8_detector.detect_objects(frame)
-        # Get Object ID
-        id_out = self.yolov8_detector.getIdObject()
-        combined_img = self.yolov8_detector.draw_detections(frame)
-        out_img = cv2.resize(combined_img, (640,480))
+
+        # detect object
+        # self.yolov8_detector.detect_objects(frame)
+
+        # # Get Object ID
+        # id_out = self.yolov8_detector.getIdObject()
+        # combined_img = self.yolov8_detector.draw_detections(frame)
+        # out_img = cv2.resize(combined_img, (640,480))
+
+        # resize image
+        image_src = cv2.resize(frame.copy(),(224,224))
+        image = np.asarray([image_src])
+
+        # pridict image
+        predict = self.model.predict(image)
+        id_out = np.argmax(predict[0])
+
         date_time_str = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
         filename = directory +  f"picture_{date_time_str}.png"
+        
         global PATH_DETECT_IMAGE
         PATH_DETECT_IMAGE = filename.replace("./images/", "./used/")
         # Lưu khung hình thành file ảnh
-        cv2.imwrite(filename, out_img)
+        cv2.imwrite(filename, frame)
         # Giải phóng kết nối với camera
         randomImgae()
+        print(id_out)
+        print(predict[0][id_out])
         ketQua = id_out
         if ketQua == 0:
             self.manager.current = 'kim_loai'
-        elif ketQua == 1:
+            Clock.schedule_once(self.play_sound_kim_loai,1)
+            
+        elif ketQua == 2:
             self.manager.current = 'nhua'
+            # playsound.playsound("chai_nhua.mp3")
+            Clock.schedule_once(self.play_sound_nhua,1)
         elif ketQua == 1:
             self.manager.current = 'hop_sua'
-
-        Clock.schedule_once(self.reset_camera, 5)
+            # playsound.playsound("hop_sua.mp3")
+            Clock.schedule_once(self.play_sound_hop_sua,1)
+        Clock.schedule_once(self.reset_camera, 7)
         
     def reset_camera(self, *args):
         # Quay lại màn hình camera
         self.manager.current = 'camera_screen'
+    def play_sound_kim_loai(self, path):
+        playsound.playsound("lon_nhom.mp3")
+    def play_sound_nhua(self, path):
+        playsound.playsound("chai_nhua.mp3")
+    def play_sound_hop_sua(self, path):
+        playsound.playsound("hop_sua.mp3")
 
 class HopSua(Screen):
     def __init__(self, **kwargs):
