@@ -26,7 +26,7 @@ import playsound
 import serial
 import tensorflow as tf
 import numpy as np
-
+import time
 date_Time = datetime.datetime.now()
 date_Time_Str = str(date_Time)
 
@@ -69,6 +69,7 @@ class CameraWidget(Widget):
 class CameraScreen(Screen):
     def __init__(self, **kwargs):
         super(CameraScreen, self).__init__(**kwargs)
+        self.checkSensor = True
         # Tạo Widget layout
         layout = FloatLayout()
 
@@ -92,11 +93,11 @@ class CameraScreen(Screen):
 
         # bắt đầu cập nhật khung hình camera
         Clock.schedule_interval(camera_widget.update, 1.0 / 30.0)
-
+        self.ser = serial.Serial(port="COM7",baudrate=9600, timeout=0.1)
         # load model
         model_name = "UEH_vending_3class_20epoch_max.h5"
         self.model = tf.keras.models.load_model(model_name)
-
+        Clock.schedule_interval(self.getSensor, 0.1)
         # Add FancyButton widget
         fancy_button = FancyButton(text='Chụp hình')
         fancy_button.size_hint = (None, None)
@@ -106,9 +107,7 @@ class CameraScreen(Screen):
         layout.add_widget(fancy_button)
         self.add_widget(layout)
 
-        Clock.schedule_interval(self.getSensor, 1.0 / 30.0)
         # config serial
-        self.ser = serial.Serial("COM6",9600, timeout = 0.1)
 
         # yolov8 onnx
 
@@ -121,18 +120,28 @@ class CameraScreen(Screen):
         #                     conf_thres=0.8, # confidence threshold
         #                     iou_thres=0.5   # iou threshold 
         #                     )
+    
+    def getSensor(self, *args):
+        self.ser.flush()
+        self.ser.flushInput()
+        self.ser.flushOutput()
+        if self.checkSensor == True:
+            x = self.ser.readline()
+            self.ser.flush()
+            print(x)
+            data = x[:-2].decode("utf-8")
+            if data == "0":
+                self.checkSensor = False
+                Clock.schedule_once(self.on_fancy_button_press, 1)
+                
 
-    def getSensor(self):
-        id = self.ser.readline()
-        print(id)
-        if id[:-2].decode("utf-8") == "0":
-            self.on_fancy_button_press()
     def update_rect(self, *args):
         self.rect.pos = self.pos
         self.rect.size = self.size
 
     def on_fancy_button_press(self, *args):
         # Do something when FancyButton is pressed
+        # time.sleep(0.5)
         directory = "./images/"
         if not os.path.exists(directory):
             os.makedirs(directory)
@@ -168,24 +177,32 @@ class CameraScreen(Screen):
         randomImgae()
         print(id_out)
         print(predict[0][id_out])
-        ketQua = id_out
-        if ketQua == 0:
-            self.manager.current = 'kim_loai'
-            Clock.schedule_once(self.play_sound_kim_loai,1)
-            
-        elif ketQua == 2:
-            self.manager.current = 'nhua'
-            # playsound.playsound("chai_nhua.mp3")
-            Clock.schedule_once(self.play_sound_nhua,1)
-        elif ketQua == 1:
-            self.manager.current = 'hop_sua'
-            # playsound.playsound("hop_sua.mp3")
-            Clock.schedule_once(self.play_sound_hop_sua,1)
+        if predict[0][id_out] > 0.45:
+            ketQua = id_out
+            if ketQua == 0:
+                self.manager.current = 'kim_loai'
+                Clock.schedule_once(self.play_sound_kim_loai,1)
+                
+            elif ketQua == 2:
+                self.manager.current = 'nhua'
+                # playsound.playsound("chai_nhua.mp3")
+                Clock.schedule_once(self.play_sound_nhua,1)
+            elif ketQua == 1:
+                self.manager.current = 'hop_sua'
+                # playsound.playsound("hop_sua.mp3")
+                Clock.schedule_once(self.play_sound_hop_sua,1)
+        else:
+            self.manager.current = 'rac_khac'
+                # playsound.playsound("hop_sua.mp3")
+            # Clock.schedule_once(self.play_sound_hop_sua,1)  
         Clock.schedule_once(self.reset_camera, 7)
+        
         
     def reset_camera(self, *args):
         # Quay lại màn hình camera
         self.manager.current = 'camera_screen'
+        self.checkSensor = True
+
     def play_sound_kim_loai(self, path):
         playsound.playsound("lon_nhom.mp3")
     def play_sound_nhua(self, path):
@@ -260,6 +277,27 @@ class Nhua(Screen):
         self.small_img.pos_hint = {'center_x': 0.3, 'y': 0.15}
         self.add_widget(self.small_img)
 
+class Khac(Screen):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.layout = BoxLayout(orientation='vertical')
+        with self.canvas:
+            # Load the image and create a texture from it
+            img = Image('1.png').texture
+            # Create a Rectangle object with the texture as its source
+            self.rect = Rectangle(texture=img, pos=self.pos, size=self.size)
+        # Bind the texture and size properties of the Rectangle object
+        # to the corresponding properties of the widget
+        self.bind(pos=self.update_rect, size=self.update_rect)
+        Clock.schedule_interval(self.update_detect_img, 0.5)
+    def update_rect(self, *args):
+        self.rect.pos = self.pos
+        self.rect.size = self.size
+    def update_detect_img(self, dt):
+        global PATH_DETECT_IMAGE
+        self.small_img = KvImage(source=PATH_DETECT_IMAGE, size_hint=(0.4, 0.4))
+        self.small_img.pos_hint = {'center_x': 0.3, 'y': 0.15}
+        self.add_widget(self.small_img)
 class MyScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -303,6 +341,7 @@ class MyApp(App):
         sm.add_widget(HopSua(name='hop_sua'))
         sm.add_widget(KimLoai(name='kim_loai'))
         sm.add_widget(Nhua(name='nhua'))
+        sm.add_widget(Khac(name='rac_khac'))
         return sm
 
 
