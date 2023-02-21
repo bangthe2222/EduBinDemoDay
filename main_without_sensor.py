@@ -4,7 +4,6 @@ from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.widget import Widget
 
 kivy.require('2.0.0')
-print(kivy.__version__)
 
 from kivy.clock import Clock
 from kivy.app import App
@@ -27,6 +26,7 @@ import numpy as np
 import time
 import csv
 import piexif
+
 
 date_Time = datetime.datetime.now()
 date_Time_Str = str(date_Time)

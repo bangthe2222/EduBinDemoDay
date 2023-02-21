@@ -4,7 +4,6 @@ from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.widget import Widget
 
 kivy.require('2.0.0')
-print(kivy.__version__)
 
 from kivy.clock import Clock
 from kivy.app import App
@@ -156,7 +155,11 @@ class CameraScreen(Screen):
 
         # resize image
         image_src = cv2.resize(frame.copy(),(224,224))
+
+        # convert BRG to RGB image
         # image_src = cv2.cvtColor(image_src, cv2.COLOR_BGR2RGB)
+
+        # add dim 
         image = np.asarray([image_src])
 
         # pridict image
