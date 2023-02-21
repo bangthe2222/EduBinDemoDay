@@ -19,9 +19,6 @@ import datetime
 from kivy.uix.screenmanager import ScreenManager, Screen, WipeTransition
 import cv2
 from kivy.graphics.texture import Texture
-from __random import randomImgae
-import cv2
-from models.YOLOv8 import YOLOv8
 import playsound 
 import serial
 import tensorflow as tf
@@ -174,7 +171,7 @@ class CameraScreen(Screen):
         # Lưu khung hình thành file ảnh
         cv2.imwrite(filename, frame)
         # Giải phóng kết nối với camera
-        randomImgae()
+   
         print(id_out)
         print(predict[0][id_out])
         if predict[0][id_out] > 0.45:
